@@ -4,6 +4,8 @@ import com.fulfilment.application.monolith.warehouses.domain.models.Warehouse;
 import com.fulfilment.application.monolith.warehouses.domain.ports.WarehouseStore;
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+
+import java.time.LocalDateTime;
 import java.util.List;
 
 @ApplicationScoped
@@ -11,12 +13,13 @@ public class WarehouseRepository implements WarehouseStore, PanacheRepository<Db
 
   @Override
   public List<Warehouse> getAll() {
-    return this.listAll().stream().map(DbWarehouse::toWarehouse).toList();
+    return this.list("archivedAt IS NULL").stream().map(DbWarehouse::toWarehouse).toList();
   }
 
   @Override
   public void create(Warehouse warehouse) {
     DbWarehouse dbWarehouse = new DbWarehouse();
+    dbWarehouse.version = 0L;
     dbWarehouse.businessUnitCode = warehouse.businessUnitCode;
     dbWarehouse.location = warehouse.location;
     dbWarehouse.capacity = warehouse.capacity;
@@ -29,25 +32,26 @@ public class WarehouseRepository implements WarehouseStore, PanacheRepository<Db
 
   @Override
   public void update(Warehouse warehouse) {
-    getEntityManager().createQuery(
-      "UPDATE DbWarehouse w SET w.location = :loc, w.capacity = :cap, " +
-      "w.stock = :stock, w.archivedAt = :archived WHERE w.businessUnitCode = :code")
-      .setParameter("loc", warehouse.location)
-      .setParameter("cap", warehouse.capacity)
-      .setParameter("stock", warehouse.stock)
-      .setParameter("archived", warehouse.archivedAt)
-      .setParameter("code", warehouse.businessUnitCode)
-      .executeUpdate();
+    DbWarehouse managed = getEntityManager()
+            .createQuery("SELECT w FROM DbWarehouse w WHERE w.businessUnitCode = :code", DbWarehouse.class)
+            .setParameter("code", warehouse.businessUnitCode)
+            .getSingleResult();
 
-    // Clear persistence context to see updates in subsequent queries
-    getEntityManager().flush();
-    getEntityManager().clear();
+    // Hibernate tracks 'managed' — will check @Version on commit
+    managed.location = warehouse.location;
+    managed.capacity = warehouse.capacity;
+    managed.stock = warehouse.stock;
+    managed.archivedAt = warehouse.archivedAt;
   }
 
   @Override
   public void remove(Warehouse warehouse) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'remove'");
+    DbWarehouse managed = getEntityManager()
+            .createQuery("SELECT w FROM DbWarehouse w WHERE w.businessUnitCode = :code", DbWarehouse.class)
+            .setParameter("code", warehouse.businessUnitCode)
+            .getSingleResult();
+
+    managed.archivedAt = warehouse.archivedAt;
   }
 
   @Override
@@ -55,4 +59,6 @@ public class WarehouseRepository implements WarehouseStore, PanacheRepository<Db
     DbWarehouse dbWarehouse = find("businessUnitCode", buCode).firstResult();
     return dbWarehouse != null ? dbWarehouse.toWarehouse() : null;
   }
+
+
 }

@@ -10,9 +10,9 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 
+//Removed Cacheable,since optimistic locking was not working
 @Entity
 @Table(name = "warehouse")
-@Cacheable
 public class DbWarehouse {
 
   @Id @GeneratedValue public Long id;
@@ -38,6 +38,7 @@ public class DbWarehouse {
   public Warehouse toWarehouse() {
     var warehouse = new Warehouse();
     warehouse.businessUnitCode = this.businessUnitCode;
+    warehouse.version = this.version;
     warehouse.location = this.location;
     warehouse.capacity = this.capacity;
     warehouse.stock = this.stock;

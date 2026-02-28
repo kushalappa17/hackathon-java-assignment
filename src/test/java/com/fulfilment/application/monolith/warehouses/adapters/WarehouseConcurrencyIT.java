@@ -67,8 +67,8 @@ public class WarehouseConcurrencyIT {
           warehouse.location = "AMSTERDAM-001";
           warehouse.capacity = 50;
           warehouse.stock = 10;
-          
-          createWarehouseUseCase.create(warehouse);
+
+          createWarehouseInNewTransaction(warehouse);
           return true;
         } catch (Exception e) {
           return false;
@@ -117,8 +117,9 @@ public class WarehouseConcurrencyIT {
           warehouse.location = "ZWOLLE-001";
           warehouse.capacity = 30;
           warehouse.stock = 5;
-          
-          createWarehouseUseCase.create(warehouse);
+
+          createWarehouseInNewTransaction(warehouse);
+//          createWarehouseUseCase.create(warehouse);
           successCount.incrementAndGet();
         } catch (Exception e) {
           // Expected: duplicate key or already exists error
@@ -141,7 +142,6 @@ public class WarehouseConcurrencyIT {
    * Test concurrent reads don't block each other (read scalability).
    */
   @Test
-  @Transactional
   public void testConcurrentReadsAreNonBlocking() throws InterruptedException {
     // Create a warehouse first
     Warehouse warehouse = new Warehouse();
@@ -149,7 +149,7 @@ public class WarehouseConcurrencyIT {
     warehouse.location = "AMSTERDAM-001";
     warehouse.capacity = 100;
     warehouse.stock = 50;
-    createWarehouseUseCase.create(warehouse);
+    createWarehouseInNewTransaction(warehouse);
     
     int readThreadCount = 20;
     ExecutorService executor = Executors.newFixedThreadPool(readThreadCount);
@@ -160,11 +160,18 @@ public class WarehouseConcurrencyIT {
     for (int i = 0; i < readThreadCount; i++) {
       executor.submit(() -> {
         try {
-          Warehouse found = warehouseRepository.findByBusinessUnitCode("READ-TEST-001");
+          Warehouse found = readWarehouseInNewTransaction("READ-TEST-001");
           if (found != null) {
             successfulReads.incrementAndGet();
           }
-        } finally {
+        } catch(Exception e){
+          System.out.println("Read thread failed: " + e.getClass().getName() + ": " + e.getMessage());
+          Throwable cause = e.getCause();
+          while (cause != null) {
+            System.out.println("  Caused by: " + cause.getClass().getName() + ": " + cause.getMessage());
+            cause = cause.getCause();
+          }
+        }finally {
           latch.countDown();
         }
       });
@@ -175,5 +182,16 @@ public class WarehouseConcurrencyIT {
     
     // All reads should succeed
     assertEquals(readThreadCount, successfulReads.get(), "All concurrent reads should succeed");
+  }
+
+
+  @Transactional(Transactional.TxType.REQUIRES_NEW)
+  public void createWarehouseInNewTransaction(Warehouse warehouse) {
+    createWarehouseUseCase.create(warehouse);
+  }
+
+  @Transactional(Transactional.TxType.REQUIRES_NEW)
+  Warehouse readWarehouseInNewTransaction(String businessUnitCode) {
+    return warehouseRepository.findByBusinessUnitCode(businessUnitCode);
   }
 }

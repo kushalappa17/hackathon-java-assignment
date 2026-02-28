@@ -7,6 +7,8 @@ public class Warehouse {
   // unique identifier
   public String businessUnitCode;
 
+  public long version;
+
   public String location;
 
   public Integer capacity;

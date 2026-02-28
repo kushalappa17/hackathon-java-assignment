@@ -4,8 +4,10 @@ import com.fulfilment.application.monolith.warehouses.domain.models.Warehouse;
 import com.fulfilment.application.monolith.warehouses.domain.ports.ArchiveWarehouseOperation;
 import com.fulfilment.application.monolith.warehouses.domain.ports.WarehouseStore;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.transaction.Transactional;
 
 @ApplicationScoped
+@Transactional
 public class ArchiveWarehouseUseCase implements ArchiveWarehouseOperation {
 
   private final WarehouseStore warehouseStore;
@@ -30,6 +32,7 @@ public class ArchiveWarehouseUseCase implements ArchiveWarehouseOperation {
     }
 
     // Set archive timestamp
+    existing.stock = warehouse.stock;
     existing.archivedAt = java.time.LocalDateTime.now();
 
     // Update the warehouse

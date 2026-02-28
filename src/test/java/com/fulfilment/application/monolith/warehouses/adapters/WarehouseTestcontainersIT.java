@@ -98,7 +98,6 @@ public class WarehouseTestcontainersIT {
     
     // Query all warehouses
     List<Warehouse> all = warehouseRepository.getAll();
-    
     // Should have at least 5
     assertTrue(all.size() >= 5);
     

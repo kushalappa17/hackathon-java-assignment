@@ -195,6 +195,12 @@ public class ArchiveWarehouseUseCaseTest {
   @Transactional(TxType.REQUIRES_NEW)
   void updateStockInNewTransaction(String businessUnitCode, int newStock) {
     Warehouse warehouse = warehouseRepository.findByBusinessUnitCode(businessUnitCode);
+
+    //Add validation to check if the warehouse is archived
+    if (warehouse.archivedAt != null) {
+      throw new IllegalArgumentException(
+              "Warehouse with business unit code '" + warehouse.businessUnitCode + "' is already archived");
+    }
     warehouse.stock = newStock;
     warehouseRepository.update(warehouse);
   }
