@@ -1,0 +1,143 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ "main"]
+  pull_request:
+    branches: [ "main"]
+
+env:
+  JAVA_VERSION: '17'
+  JAVA_DISTRIBUTION: 'temurin'
+
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: quarkus_test
+          POSTGRES_USER: kushalappa_np
+          POSTGRES_PASSWORD: Kushalappa@17
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Build & run all tests
+        run: mvn clean verify -B
+        env:
+          QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://localhost:5432/quarkus_test
+          QUARKUS_DATASOURCE_USERNAME: kushalappa_np
+          QUARKUS_DATASOURCE_PASSWORD: Kushalappa@17
+
+      - name: Upload Surefire test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: target/surefire-reports/
+          retention-days: 7
+
+      - name: Upload Failsafe test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failsafe-reports
+          path: target/failsafe-reports/
+          retention-days: 7
+
+      - name: Upload JaCoCo exec files
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-exec
+          path: target/*.exec
+          retention-days: 1
+
+      - name: Upload JaCoCo HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: target/site/jacoco/
+          retention-days: 7
+
+  coverage-report:
+    name: Coverage Report
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download JaCoCo report
+        uses: actions/download-artifact@v4
+        with:
+          name: jacoco-report
+          path: target/site/jacoco/
+
+      - name: Download JaCoCo exec files
+        uses: actions/download-artifact@v4
+        with:
+          name: jacoco-exec
+          path: target/
+
+      - name: Post coverage summary to PR
+        uses: madrapps/jacoco-report@v1.6.1
+        with:
+          paths: target/site/jacoco/jacoco.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: '📊 JaCoCo Coverage Report'
+          update-comment: true
+          min-coverage-overall: 60
+          min-coverage-changed-files: 70
+          pass-emoji: '✅'
+          fail-emoji: '❌'
+
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          cache: maven
+
+      - name: Build deployable JAR (skip tests — already passed)
+        run: mvn package -B -DskipTests
+
+      - name: Upload deployable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: quarkus-app
+          path: target/quarkus-app/
+          retention-days: 30
+
+      - name: Deployment complete
+        run: echo "Artifact built and ready for deployment from main branch."

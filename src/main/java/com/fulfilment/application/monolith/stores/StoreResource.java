@@ -58,6 +58,15 @@ public class StoreResource {
       throw new WebApplicationException("Id was invalidly set on request.", 422);
     }
 
+    if (store.name == null) {
+      throw new WebApplicationException("Store Name was not set on request.", 422);
+    }
+
+    if (Store.find("name", store.name).firstResult() != null) {
+      throw new WebApplicationException(
+              "Store with name '" + store.name + "' already exists.", 422);
+    }
+
     store.persist();
     storeCreatedEvent.fire(new StoreCreatedEvent(store));
 
@@ -79,7 +88,10 @@ public class StoreResource {
     }
 
     entity.name = updatedStore.name;
-    entity.quantityProductsInStock = updatedStore.quantityProductsInStock;
+
+    if (updatedStore.quantityProductsInStock != 0) {
+      entity.quantityProductsInStock = updatedStore.quantityProductsInStock;
+    }
 
     storeUpdatedEvent.fireAsync(new StoreUpdatedEvent(entity));
 
@@ -90,9 +102,6 @@ public class StoreResource {
   @Path("{id}")
   @Transactional
   public Store patch(Long id, Store updatedStore) {
-    if (updatedStore.name == null) {
-      throw new WebApplicationException("Store Name was not set on request.", 422);
-    }
 
     Store entity = Store.findById(id);
 
@@ -100,11 +109,11 @@ public class StoreResource {
       throw new WebApplicationException("Store with id of " + id + " does not exist.", 404);
     }
 
-    if (entity.name != null) {
+    if(updatedStore.name != null){
       entity.name = updatedStore.name;
     }
 
-    if (entity.quantityProductsInStock != 0) {
+    if (updatedStore.quantityProductsInStock != 0) {
       entity.quantityProductsInStock = updatedStore.quantityProductsInStock;
     }
 
@@ -123,31 +132,5 @@ public class StoreResource {
     }
     entity.delete();
     return Response.status(204).build();
-  }
-
-  @Provider
-  public static class ErrorMapper implements ExceptionMapper<Exception> {
-
-    @Inject ObjectMapper objectMapper;
-
-    @Override
-    public Response toResponse(Exception exception) {
-      LOGGER.error("Failed to handle request", exception);
-
-      int code = 500;
-      if (exception instanceof WebApplicationException) {
-        code = ((WebApplicationException) exception).getResponse().getStatus();
-      }
-
-      ObjectNode exceptionJson = objectMapper.createObjectNode();
-      exceptionJson.put("exceptionType", exception.getClass().getName());
-      exceptionJson.put("code", code);
-
-      if (exception.getMessage() != null) {
-        exceptionJson.put("error", exception.getMessage());
-      }
-
-      return Response.status(code).entity(exceptionJson).build();
-    }
   }
 }

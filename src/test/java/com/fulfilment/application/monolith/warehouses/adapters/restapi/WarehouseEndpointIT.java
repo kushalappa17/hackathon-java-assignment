@@ -3,9 +3,7 @@ package com.fulfilment.application.monolith.warehouses.adapters.restapi;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.not;
-
 import io.quarkus.test.junit.QuarkusIntegrationTest;
-import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.Test;
 
 @QuarkusIntegrationTest

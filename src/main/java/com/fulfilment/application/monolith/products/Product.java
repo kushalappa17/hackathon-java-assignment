@@ -5,6 +5,9 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotNull;
+
 import java.math.BigDecimal;
 
 @Entity
@@ -19,7 +22,9 @@ public class Product {
   @Column(nullable = true)
   public String description;
 
-  @Column(precision = 10, scale = 2, nullable = true)
+  @NotNull(message="Price is required")
+  @DecimalMin(value = "0.0", inclusive = false, message = "Price must be greater than zero")
+  @Column(precision = 10, scale = 2, nullable = false)
   public BigDecimal price;
 
   public int stock;
