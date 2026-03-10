@@ -2,9 +2,9 @@ name: CI Pipeline
 
 on:
   push:
-    branches: [ "main"]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "main"]
+    branches: [ "main" ]
 
 env:
   JAVA_VERSION: '17'
@@ -51,11 +51,14 @@ jobs:
           ls -la src/test/resources/ || echo "Empty - correct!"
 
       # ── Single step: unit tests + IT tests + coverage report ──
+      # NOTE: -XX:+EnableDynamicAgentLoading lives in pom.xml argLine, NOT here.
+      # Passing JVM -XX flags directly to the mvn command causes Maven to
+      # interpret them as plugin goals, resulting in NoPluginFoundForPrefixException.
       - name: Build & run all tests
-        run: mvn clean verify -B -Dnet.bytebuddy.experimental=true -XX:+EnableDynamicAgentLoading
+        run: mvn clean verify -B
         env:
-          # Unit tests use H2 via %test. profile — no DB env needed for those
-          # These env vars are only used by IT tests (forked JVM / WarehouseEndpointIT)
+          # Unit tests use H2 via %test. profile — no DB env vars needed for those.
+          # These env vars are used only by IT tests (forked JVM / WarehouseEndpointIT).
           QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://localhost:5432/quarkus_test
           QUARKUS_DATASOURCE_USERNAME: kushalappa_np
           QUARKUS_DATASOURCE_PASSWORD: Kushalappa@17
@@ -118,7 +121,6 @@ jobs:
     name: Coverage Report
     runs-on: ubuntu-latest
     needs: build-and-test
-
     if: github.event_name == 'pull_request'
 
     steps:
@@ -153,7 +155,6 @@ jobs:
     name: Deploy
     runs-on: ubuntu-latest
     needs: build-and-test
-
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:

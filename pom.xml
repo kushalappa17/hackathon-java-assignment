@@ -172,6 +172,27 @@
                 <executions>
                     <!-- Merge all exec files into one -->
                     <execution>
+                        <id>prepare-agent</id>
+                        <goals><goal>prepare-agent</goal></goals>
+                        <configuration>
+                            <destFile>${project.build.directory}/jacoco.exec</destFile>
+                            <!-- Appends to argLine so Surefire picks up the agent -->
+                            <append>true</append>
+                        </configuration>
+                    </execution>
+
+                    <!-- Step 2: Prepare JaCoCo agent BEFORE integration tests (Failsafe) -->
+                    <execution>
+                        <id>prepare-agent-integration</id>
+                        <goals><goal>prepare-agent-integration</goal></goals>
+                        <configuration>
+                            <destFile>${project.build.directory}/jacoco-it.exec</destFile>
+                            <append>true</append>
+                        </configuration>
+                    </execution>
+
+                    <!-- Step 3: Merge all exec files into one -->
+                    <execution>
                         <id>merge-results</id>
                         <phase>verify</phase>
                         <goals><goal>merge</goal></goals>
@@ -182,13 +203,17 @@
                                     <includes>
                                         <include>*.exec</include>
                                     </includes>
+                                    <excludes>
+                                        <!-- Exclude the merged file itself to avoid self-merging -->
+                                        <exclude>jacoco-merged.exec</exclude>
+                                    </excludes>
                                 </fileSet>
                             </fileSets>
                             <destFile>${project.build.directory}/jacoco-merged.exec</destFile>
                         </configuration>
                     </execution>
 
-                    <!-- Generate report from merged file -->
+                    <!-- Step 4: Generate HTML + XML report from merged file -->
                     <execution>
                         <id>report</id>
                         <phase>verify</phase>
