@@ -42,113 +42,18 @@ jobs:
           distribution: ${{ env.JAVA_DISTRIBUTION }}
           cache: maven
 
-      # ── Verify resources exist before running ──
-      - name: Verify resources
-        run: |
-          echo "=== main/resources ==="
-          ls -la src/main/resources/
-          echo "=== test/resources ==="
-          ls -la src/test/resources/ || echo "Empty - correct!"
-
-      # ── Step 1: Unit tests ONLY ──
-      # No PostgreSQL env vars here — %test. profile in application.properties
-      # activates H2. Setting QUARKUS_DATASOURCE_JDBC_URL would override the
-      # %test. profile and force PostgreSQL, causing SessionFactory boot failure.
       - name: Run unit tests
         run: mvn clean test -B
 
-      # ── Step 2: Package the application ──
-      # Required before Failsafe can run IT tests against the built JAR
       - name: Package application
         run: mvn package -B -DskipTests
 
-      # ── Step 3: Integration tests ONLY ──
-      # WarehouseEndpointIT is skipped via -DCI_SKIP_INTEGRATION=true (needs PostgreSQL + forked JVM).
-      # All other IT tests (ConcurrencyIT, TestcontainersIT) use H2 and run fine in CI.
       - name: Run integration tests
         run: mvn failsafe:integration-test failsafe:verify -B -DCI_SKIP_INTEGRATION=true
 
-      # ── Step 4: Merge exec files + generate HTML and XML coverage report ──
       - name: Generate coverage report
         run: mvn jacoco:merge@merge-results jacoco:report@report -B
 
-      # ── Print details on failure ──
-      - name: Print surefire reports on failure
-        if: failure()
-        run: |
-          echo "=== SUREFIRE REPORTS ==="
-          find target/surefire-reports -name "*.txt" -exec cat {} \; 2>/dev/null
-          echo "=== DUMP FILES ==="
-          find target/surefire-reports -name "*.dumpstream" -exec cat {} \; 2>/dev/null
-          echo "=== QUARKUS LOG ==="
-          cat target/quarkus.log 2>/dev/null || echo "No quarkus.log"
-
-      # ── Upload artifacts ──
-      - name: Upload Surefire test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: surefire-reports
-          path: target/surefire-reports/
-          retention-days: 7
-
-      - name: Upload Failsafe test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: failsafe-reports
-          path: target/failsafe-reports/
-          retention-days: 7
-
-      - name: Upload surefire dumps on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: surefire-dumps
-          path: |
-            target/surefire-reports/*.dump
-            target/surefire-reports/*.dumpstream
-          retention-days: 3
-
-      - name: Upload JaCoCo exec files
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: jacoco-exec
-          path: target/*.exec
-          retention-days: 1
-
-      - name: Upload JaCoCo HTML report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: jacoco-report
-          path: target/site/jacoco/
-          retention-days: 7
-
-  coverage-report:
-    name: Coverage Report
-    runs-on: ubuntu-latest
-    needs: build-and-test
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download JaCoCo report
-        uses: actions/download-artifact@v4
-        with:
-          name: jacoco-report
-          path: target/site/jacoco/
-
-      - name: Download JaCoCo exec files
-        uses: actions/download-artifact@v4
-        with:
-          name: jacoco-exec
-          path: target/
-
-      # Print coverage summary directly in CI logs (no external service needed)
       - name: Print coverage summary
         run: |
           echo "====== 📊 JaCoCo Coverage Summary ======"
@@ -167,7 +72,6 @@ jobs:
                   print(f"  {t:<12} {pct(counters[t])}")
           PYEOF
 
-      # Post PR comment (only on pull_request events)
       - name: Post coverage comment to PR
         if: github.event_name == 'pull_request'
         continue-on-error: true
@@ -181,6 +85,32 @@ jobs:
           min-coverage-changed-files: 70
           pass-emoji: '✅'
           fail-emoji: '❌'
+
+      - name: Print surefire reports on failure
+        if: failure()
+        run: |
+          echo "=== SUREFIRE REPORTS ==="
+          find target/surefire-reports -name "*.txt" -exec cat {} \; 2>/dev/null
+          echo "=== DUMP FILES ==="
+          find target/surefire-reports -name "*.dumpstream" -exec cat {} \; 2>/dev/null
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            target/surefire-reports/
+            target/failsafe-reports/
+          retention-days: 7
+
+      - name: Upload JaCoCo HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: target/site/jacoco/
+          retention-days: 7
 
   deploy:
     name: Deploy
