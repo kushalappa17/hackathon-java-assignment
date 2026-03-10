@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.inventorix</groupId>
     <artifactId>java-code-assignment</artifactId>
@@ -15,6 +15,9 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <maven.compiler.release>17</maven.compiler.release>
+        <!-- Default false: WarehouseEndpointIT runs locally. CI passes -DCI_SKIP_INTEGRATION=true to skip it. -->
+        <CI_SKIP_INTEGRATION>false</CI_SKIP_INTEGRATION>
+
     </properties>
 
     <dependencyManagement>
@@ -111,12 +114,13 @@
                     <parameters>true</parameters>
                 </configuration>
             </plugin>
+
             <plugin>
-                <!-- you need this specific version to integrate with the other build helpers -->
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${surefire-plugin.version}</version>
                 <configuration>
-                    <argLine>-Dnet.bytebuddy.experimental=true</argLine>
+                    <!-- @{argLine} allows JaCoCo to inject its agent alongside your flags -->
+                    <argLine>@{argLine} -Dnet.bytebuddy.experimental=true -XX:+EnableDynamicAgentLoading</argLine>
                     <excludes>
                         <exclude>**/*IT.java</exclude>
                     </excludes>
@@ -142,6 +146,7 @@
                     </execution>
                 </executions>
             </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
@@ -153,30 +158,37 @@
                             <goal>verify</goal>
                         </goals>
                         <configuration>
-                            <argLine>-Dnet.bytebuddy.experimental=true</argLine>
+                            <!-- @{argLine} allows JaCoCo to inject its agent alongside your flags -->
+                            <argLine>@{argLine} -Dnet.bytebuddy.experimental=true -XX:+EnableDynamicAgentLoading</argLine>
                             <includes>
                                 <include>**/*IT.java</include>
                             </includes>
                             <systemPropertyVariables>
                                 <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                                 <maven.home>${maven.home}</maven.home>
+                                <!--
+                                    Passes CI_SKIP_INTEGRATION into the Failsafe JVM.
+                                    Local:  mvn verify                          → false (default) → WarehouseEndpointIT RUNS
+                                    CI:     mvn verify -DCI_SKIP_INTEGRATION=true → true           → WarehouseEndpointIT SKIPPED
+                                -->
+                                <CI_SKIP_INTEGRATION>${CI_SKIP_INTEGRATION}</CI_SKIP_INTEGRATION>
                             </systemPropertyVariables>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
+
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <version>0.8.11</version>
                 <executions>
-                    <!-- Merge all exec files into one -->
+                    <!-- Step 1: Prepare JaCoCo agent BEFORE unit tests (Surefire) -->
                     <execution>
                         <id>prepare-agent</id>
                         <goals><goal>prepare-agent</goal></goals>
                         <configuration>
                             <destFile>${project.build.directory}/jacoco.exec</destFile>
-                            <!-- Appends to argLine so Surefire picks up the agent -->
                             <append>true</append>
                         </configuration>
                     </execution>
@@ -234,7 +246,6 @@
 
     <profiles>
         <profile>
-            <!-- Optionally activate this profile to compile the demo into native! -->
             <id>native</id>
             <activation>
                 <property>
@@ -262,6 +273,7 @@
                                         <native.image.path>${project.build.directory}/${project.build.finalName}-runner</native.image.path>
                                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                                         <maven.home>${maven.home}</maven.home>
+                                        <CI_SKIP_INTEGRATION>${CI_SKIP_INTEGRATION}</CI_SKIP_INTEGRATION>
                                     </systemPropertyVariables>
                                 </configuration>
                             </execution>
@@ -274,14 +286,12 @@
             <id>eclipse</id>
             <activation>
                 <property>
-                    <!-- This is a trick to have the profile automatically activated by Eclipse -->
                     <name>m2e.version</name>
                 </property>
             </activation>
             <build>
                 <pluginManagement>
                     <plugins>
-                        <!--This plugin's configuration is used to store Eclipse m2e settings only. It has no influence on the Maven build itself.-->
                         <plugin>
                             <groupId>org.eclipse.m2e</groupId>
                             <artifactId>lifecycle-mapping</artifactId>

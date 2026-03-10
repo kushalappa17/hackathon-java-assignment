@@ -5,8 +5,10 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.not;
 import io.quarkus.test.junit.QuarkusIntegrationTest;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledIfSystemProperty;
 
 @QuarkusIntegrationTest
+@DisabledIfSystemProperty(named = "ci.skip.integration", matches = "true")
 public class WarehouseEndpointIT {
 
   @Test
