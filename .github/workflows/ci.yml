@@ -11,6 +11,7 @@ env:
   JAVA_DISTRIBUTION: 'temurin'
 
 jobs:
+
   build-and-test:
     name: Build & Test
     runs-on: ubuntu-latest
@@ -41,19 +42,36 @@ jobs:
           distribution: ${{ env.JAVA_DISTRIBUTION }}
           cache: maven
 
-      - name: Run unit tests
-        run: mvn clean test -B -Dnet.bytebuddy.experimental=true -XX:+EnableDynamicAgentLoading
+      # ── Verify test resources before running ──
+      - name: Verify resources
+        run: |
+          echo "=== main/resources ==="
+          ls -la src/main/resources/
+          echo "=== test/resources ==="
+          ls -la src/test/resources/ || echo "Empty - correct!"
 
-      - name: Run integration tests
-        run: mvn failsafe:integration-test failsafe:verify -B -Dnet.bytebuddy.experimental=true
+      # ── Single step: unit tests + IT tests + coverage report ──
+      - name: Build & run all tests
+        run: mvn clean verify -B -Dnet.bytebuddy.experimental=true -XX:+EnableDynamicAgentLoading
         env:
+          # Unit tests use H2 via %test. profile — no DB env needed for those
+          # These env vars are only used by IT tests (forked JVM / WarehouseEndpointIT)
           QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://localhost:5432/quarkus_test
           QUARKUS_DATASOURCE_USERNAME: kushalappa_np
           QUARKUS_DATASOURCE_PASSWORD: Kushalappa@17
 
-      - name: Generate JaCoCo coverage report
-        run: mvn jacoco:merge jacoco:report -B
+      # ── Print details on failure ──
+      - name: Print surefire reports on failure
+        if: failure()
+        run: |
+          echo "=== SUREFIRE REPORTS ==="
+          find target/surefire-reports -name "*.txt" -exec cat {} \; 2>/dev/null
+          echo "=== DUMP FILES ==="
+          find target/surefire-reports -name "*.dumpstream" -exec cat {} \; 2>/dev/null
+          echo "=== QUARKUS LOG ==="
+          cat target/quarkus.log 2>/dev/null || echo "No quarkus.log"
 
+      # ── Upload artifacts ──
       - name: Upload Surefire test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -70,7 +88,7 @@ jobs:
           path: target/failsafe-reports/
           retention-days: 7
 
-      - name: Upload surefire dump files on failure
+      - name: Upload surefire dumps on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
