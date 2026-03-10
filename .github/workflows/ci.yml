@@ -148,7 +148,29 @@ jobs:
           name: jacoco-exec
           path: target/
 
-      - name: Post coverage summary to PR
+      # Print coverage summary directly in CI logs (no external service needed)
+      - name: Print coverage summary
+        run: |
+          echo "====== 📊 JaCoCo Coverage Summary ======"
+          python3 - <<'PYEOF'
+          import xml.etree.ElementTree as ET
+          tree = ET.parse('target/site/jacoco/jacoco.xml')
+          root = tree.getroot()
+          counters = {c.get('type'): c for c in root.findall('counter')}
+          def pct(c):
+              missed = int(c.get('missed', 0))
+              covered = int(c.get('covered', 0))
+              total = missed + covered
+              return f"{covered}/{total} ({100*covered//total if total else 0}%)" if total else "N/A"
+          for t in ['INSTRUCTION', 'BRANCH', 'LINE', 'METHOD', 'CLASS']:
+              if t in counters:
+                  print(f"  {t:<12} {pct(counters[t])}")
+          PYEOF
+
+      # Post PR comment (only on pull_request events)
+      - name: Post coverage comment to PR
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
         uses: madrapps/jacoco-report@v1.6.1
         with:
           paths: target/site/jacoco/jacoco.xml
