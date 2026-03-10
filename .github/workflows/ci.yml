@@ -14,6 +14,7 @@ jobs:
   build-and-test:
     name: Build & Test
     runs-on: ubuntu-latest
+
     services:
       postgres:
         image: postgres:15
@@ -27,7 +28,8 @@ jobs:
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 10
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -39,12 +41,18 @@ jobs:
           distribution: ${{ env.JAVA_DISTRIBUTION }}
           cache: maven
 
-      - name: Build & run all tests
-        run: mvn clean verify -B
+      - name: Run unit tests
+        run: mvn clean test -B -Dnet.bytebuddy.experimental=true -XX:+EnableDynamicAgentLoading
+
+      - name: Run integration tests
+        run: mvn failsafe:integration-test failsafe:verify -B -Dnet.bytebuddy.experimental=true
         env:
           QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://localhost:5432/quarkus_test
           QUARKUS_DATASOURCE_USERNAME: kushalappa_np
           QUARKUS_DATASOURCE_PASSWORD: Kushalappa@17
+
+      - name: Generate JaCoCo coverage report
+        run: mvn jacoco:merge jacoco:report -B
 
       - name: Upload Surefire test results
         if: always()
@@ -62,7 +70,18 @@ jobs:
           path: target/failsafe-reports/
           retention-days: 7
 
+      - name: Upload surefire dump files on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-dumps
+          path: |
+            target/surefire-reports/*.dump
+            target/surefire-reports/*.dumpstream
+          retention-days: 3
+
       - name: Upload JaCoCo exec files
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: jacoco-exec
@@ -70,6 +89,7 @@ jobs:
           retention-days: 1
 
       - name: Upload JaCoCo HTML report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: jacoco-report
