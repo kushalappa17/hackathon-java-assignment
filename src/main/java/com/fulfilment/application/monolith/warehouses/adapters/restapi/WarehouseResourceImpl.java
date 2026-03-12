@@ -1,5 +1,6 @@
 package com.fulfilment.application.monolith.warehouses.adapters.restapi;
 
+import com.fulfilment.application.monolith.stores.StoreResource;
 import com.fulfilment.application.monolith.warehouses.adapters.database.WarehouseRepository;
 import com.fulfilment.application.monolith.warehouses.domain.models.WareHouseSearchRequest;
 import com.fulfilment.application.monolith.warehouses.domain.ports.ArchiveWarehouseOperation;
@@ -12,6 +13,7 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.validation.constraints.NotNull;
 import jakarta.ws.rs.WebApplicationException;
+import org.jboss.logging.Logger;
 
 import java.util.List;
 
@@ -22,6 +24,8 @@ public class WarehouseResourceImpl implements WarehouseResource {
   @Inject private CreateWarehouseOperation createWarehouseOperation;
   @Inject private ArchiveWarehouseOperation archiveWarehouseOperation;
   @Inject private ReplaceWarehouseOperation replaceWarehouseOperation;
+
+  private static final Logger LOGGER = Logger.getLogger(WarehouseResource.class.getName());
 
   @Override
   public List<Warehouse> listAllWarehousesUnits() {
@@ -45,6 +49,7 @@ public class WarehouseResourceImpl implements WarehouseResource {
       // Return the created warehouse
       return toWarehouseResponse(domainWarehouse);
     } catch (IllegalArgumentException e) {
+      LOGGER.errorf("Error while creating new warehouse", e.getMessage());
       throw new WebApplicationException(e.getMessage(), 400);
     }
   }
@@ -55,9 +60,10 @@ public class WarehouseResourceImpl implements WarehouseResource {
     var domainWarehouse = warehouseRepository.findByBusinessUnitCode(id);
     
     if (domainWarehouse == null) {
+      LOGGER.errorf("Warehouse with business unit code does not exist",id);
       throw new WebApplicationException("Warehouse with business unit code '" + id + "' not found", 404);
     }
-    
+    LOGGER.infof("WarehouseResource", domainWarehouse);
     return toWarehouseResponse(domainWarehouse);
   }
 
@@ -68,13 +74,16 @@ public class WarehouseResourceImpl implements WarehouseResource {
     var domainWarehouse = warehouseRepository.findByBusinessUnitCode(id);
 
     if (domainWarehouse == null) {
+      LOGGER.errorf("Warehouse with business unit code does not exist",id);
       throw new WebApplicationException("Warehouse with business unit code '" + id + "' not found", 404);
     }
 
     try {
       // Archive warehouse through use case (includes validations)
       archiveWarehouseOperation.archive(domainWarehouse);
+      LOGGER.infof("Warehouse archived successfully", domainWarehouse);
     } catch (IllegalArgumentException e) {
+      LOGGER.errorf("Error while archiving the warehouse ", e.getMessage());
       throw new WebApplicationException(e.getMessage(), 400);
     }
   }
@@ -96,8 +105,10 @@ public class WarehouseResourceImpl implements WarehouseResource {
 
       // Return the updated warehouse
       var updated = warehouseRepository.findByBusinessUnitCode(businessUnitCode);
+      LOGGER.infof("Updated warehouse", updated);
       return toWarehouseResponse(updated);
     } catch (IllegalArgumentException e) {
+      LOGGER.errorf("Error while replacing the warehouse ", e.getMessage());
       throw new WebApplicationException(e.getMessage(), 400);
     }
   }
@@ -117,6 +128,7 @@ public class WarehouseResourceImpl implements WarehouseResource {
               .map(this::toWarehouseResponse)
               .toList();
     } catch (IllegalArgumentException e) {
+      LOGGER.errorf("Error while searching the warehouse ", e.getMessage());
       throw new WebApplicationException(e.getMessage(), 400);
     }
   }

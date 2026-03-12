@@ -46,6 +46,7 @@ public class StoreResource {
   public Store getSingle(Long id) {
     Store entity = Store.findById(id);
     if (entity == null) {
+      LOGGER.errorf("Error while fetching store with id %s", id);
       throw new WebApplicationException("Store with id of " + id + " does not exist.", 404);
     }
     return entity;
@@ -55,18 +56,22 @@ public class StoreResource {
   @Transactional
   public Response create(Store store) {
     if (store.id != null) {
+      LOGGER.errorf("Id was invalidly set on request.", store.id);
       throw new WebApplicationException("Id was invalidly set on request.", 422);
     }
 
     if (store.name == null) {
+      LOGGER.errorf("Store name does not exist");
       throw new WebApplicationException("Store Name was not set on request.", 422);
     }
 
     if (Store.find("name", store.name).firstResult() != null) {
+      LOGGER.errorf("Store already exists", store.name);
       throw new WebApplicationException(
               "Store with name '" + store.name + "' already exists.", 422);
     }
 
+    LOGGER.infof("STORE", store);
     store.persist();
     storeCreatedEvent.fire(new StoreCreatedEvent(store));
 
@@ -78,12 +83,14 @@ public class StoreResource {
   @Transactional
   public Store update(Long id, Store updatedStore) {
     if (updatedStore.name == null) {
+      LOGGER.errorf("Store name does not exist");
       throw new WebApplicationException("Store Name was not set on request.", 422);
     }
 
     Store entity = Store.findById(id);
 
     if (entity == null) {
+      LOGGER.errorf("Store with the ID does not exist", id);
       throw new WebApplicationException("Store with id of " + id + " does not exist.", 404);
     }
 
@@ -93,6 +100,7 @@ public class StoreResource {
       entity.quantityProductsInStock = updatedStore.quantityProductsInStock;
     }
 
+    LOGGER.infof("Store", entity);
     storeUpdatedEvent.fireAsync(new StoreUpdatedEvent(entity));
 
     return entity;
@@ -106,6 +114,7 @@ public class StoreResource {
     Store entity = Store.findById(id);
 
     if (entity == null) {
+      LOGGER.errorf("Store with the ID does not exist", id);
       throw new WebApplicationException("Store with id of " + id + " does not exist.", 404);
     }
 
@@ -116,7 +125,7 @@ public class StoreResource {
     if (updatedStore.quantityProductsInStock != 0) {
       entity.quantityProductsInStock = updatedStore.quantityProductsInStock;
     }
-
+    LOGGER.infof("Store", entity);
     storeUpdatedEvent.fireAsync(new StoreUpdatedEvent(entity));
 
     return entity;
@@ -128,9 +137,11 @@ public class StoreResource {
   public Response delete(Long id) {
     Store entity = Store.findById(id);
     if (entity == null) {
+      LOGGER.errorf("Store with the ID does not exist", id);
       throw new WebApplicationException("Store with id of " + id + " does not exist.", 404);
     }
     entity.delete();
+    LOGGER.infof("Store deleted successfully");
     return Response.status(204).build();
   }
 }

@@ -31,6 +31,7 @@ public class ProductResource {
   public Product getSingle(Long id) {
     Product entity = productRepository.findById(id);
     if (entity == null) {
+      LOGGER.errorf("Error while fetching product with id %s", id);
       throw new WebApplicationException("Product with id of " + id + " does not exist.", 404);
     }
     return entity;
@@ -40,10 +41,12 @@ public class ProductResource {
   @Transactional
   public Response create(@Valid Product product) {
     if (product.id != null) {
+      LOGGER.errorf("Id was invalidly set on request.", product.id);
       throw new WebApplicationException("Id was invalidly set on request.", 422);
     }
 
     if (productRepository.find("name", product.name).firstResult() != null) {
+      LOGGER.error("Product with name '" + product.name + "' already exists.");
       throw new WebApplicationException(
               "Product with name '" + product.name + "' already exists.", 422);
     }
@@ -57,16 +60,19 @@ public class ProductResource {
   @Transactional
   public Product update(Long id, Product product) {
     if (product.name == null) {
+      LOGGER.error("Product Name was not set on request.");
       throw new WebApplicationException("Product Name was not set on request.", 422);
     }
 
     if (product.price == null) {
+      LOGGER.error("Product Price was not set on request.");
       throw new WebApplicationException("Product Price was not set on request.", 422);
     }
 
     Product entity = productRepository.findById(id);
 
     if (entity == null) {
+      LOGGER.error("Product with id of " + id + " does not exist.");
       throw new WebApplicationException("Product with id of " + id + " does not exist.", 404);
     }
 
@@ -74,6 +80,8 @@ public class ProductResource {
     entity.description = product.description;
     entity.price = product.price;
     entity.stock = product.stock;
+
+    LOGGER.info("Product entity :"+ entity);
 
     productRepository.persist(entity);
 
@@ -87,22 +95,28 @@ public class ProductResource {
     Product entity = productRepository.findById(id);
 
     if (entity == null) {
+      LOGGER.error("Product with id of " + id + " does not exist.");
       throw new WebApplicationException("Product with id of " + id + " does not exist.", 404);
     }
 
     if (product.name != null) {
       entity.name = product.name;
+      LOGGER.error("Product does not exist.");
     }
     if (product.description != null) {
       entity.description = product.description;
+      LOGGER.error("Product description not found.");
     }
     if (product.price != null) {
       entity.price = product.price;
+      LOGGER.error("Product with price not found");
     }
     if (product.stock != 0) {
       entity.stock = product.stock;
+      LOGGER.error("Product with id of " + id + " does not exist.");
     }
 
+    LOGGER.info("Product entity :"+ entity);
     productRepository.persist(entity);
     return entity;
   }
@@ -113,6 +127,7 @@ public class ProductResource {
   public Response delete(Long id) {
     Product entity = productRepository.findById(id);
     if (entity == null) {
+      LOGGER.error("Product with id of " + id + " does not exist.");
       throw new WebApplicationException("Product with id of " + id + " does not exist.", 404);
     }
     productRepository.delete(entity);
