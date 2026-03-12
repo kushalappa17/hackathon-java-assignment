@@ -1,6 +1,7 @@
 package com.fulfilment.application.monolith.warehouses.adapters.restapi;
 
 import com.fulfilment.application.monolith.warehouses.adapters.database.WarehouseRepository;
+import com.fulfilment.application.monolith.warehouses.domain.models.WareHouseSearchRequest;
 import com.fulfilment.application.monolith.warehouses.domain.ports.ArchiveWarehouseOperation;
 import com.fulfilment.application.monolith.warehouses.domain.ports.CreateWarehouseOperation;
 import com.fulfilment.application.monolith.warehouses.domain.ports.ReplaceWarehouseOperation;
@@ -11,6 +12,7 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.validation.constraints.NotNull;
 import jakarta.ws.rs.WebApplicationException;
+
 import java.util.List;
 
 @RequestScoped
@@ -95,6 +97,25 @@ public class WarehouseResourceImpl implements WarehouseResource {
       // Return the updated warehouse
       var updated = warehouseRepository.findByBusinessUnitCode(businessUnitCode);
       return toWarehouseResponse(updated);
+    } catch (IllegalArgumentException e) {
+      throw new WebApplicationException(e.getMessage(), 400);
+    }
+  }
+
+
+
+  @Override
+  public List<Warehouse> searchWarehousesWithFiltersAndPagination(String location, Integer minCapacity,
+                                                                  Integer maxCapacity, String sortBy,
+                                                                  String sortOrder, Integer page, Integer pageSize) {
+
+    try {
+      var request = new WareHouseSearchRequest(location, minCapacity, maxCapacity,
+              sortBy, sortOrder, page, pageSize);
+
+      return warehouseRepository.search(request).stream()
+              .map(this::toWarehouseResponse)
+              .toList();
     } catch (IllegalArgumentException e) {
       throw new WebApplicationException(e.getMessage(), 400);
     }

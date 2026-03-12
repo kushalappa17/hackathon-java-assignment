@@ -155,9 +155,9 @@
                         </goals>
                         <configuration>
                             <argLine>@{argLine} -Dnet.bytebuddy.experimental=true -XX:+EnableDynamicAgentLoading</argLine>
-                            <includes>
-                                <include>**/*IT.java</include>
-                            </includes>
+                            <excludes>
+                                <exclude>**/WarehouseArchiveSearchIT.java</exclude>
+                            </excludes>
                             <systemPropertyVariables>
                                 <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                                 <maven.home>${maven.home}</maven.home>

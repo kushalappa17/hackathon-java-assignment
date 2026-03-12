@@ -308,6 +308,201 @@ public class WarehouseResourceImplTest {
                 .body(containsString("Warehouse not active"));
     }
 
+    @Test
+    void search_returns200_withAllFiltersProvided() {
+        var w1 = domainWarehouse("WH-001", "AMSTERDAM-001", 100, 50);
+        var w2 = domainWarehouse("WH-002", "AMSTERDAM-001", 200, 80);
+        when(warehouseRepository.search(any())).thenReturn(List.of(w1, w2));
+
+        given()
+                .queryParam("location",    "AMSTERDAM-001")
+                .queryParam("minCapacity", 50)
+                .queryParam("maxCapacity", 300)
+                .queryParam("sortBy",      "capacity")
+                .queryParam("sortOrder",   "asc")
+                .queryParam("page",        0)
+                .queryParam("pageSize",    10)
+                .when().get("/warehouse/search")
+                .then()
+                .statusCode(200)
+                .body("$.size()",             is(2))
+                .body("[0].businessUnitCode", is("WH-001"))
+                .body("[0].location",         is("AMSTERDAM-001"))
+                .body("[1].businessUnitCode", is("WH-002"));
+    }
+
+    @Test
+    void search_returns200_withEmptyList_whenNoMatchFound() {
+        when(warehouseRepository.search(any())).thenReturn(List.of());
+
+        given()
+                .queryParam("location", "NOWHERE-999")
+                .when().get("/warehouse/search")
+                .then()
+                .statusCode(200)
+                .body("$.size()", is(0));
+    }
+
+    @Test
+    void search_withNoQueryParams_returns200() {
+        // All params are optional — bare request is valid
+        when(warehouseRepository.search(any())).thenReturn(List.of(
+                domainWarehouse("WH-001", "LONDON-001", 100, 50)
+        ));
+
+        given()
+                .when().get("/warehouse/search")
+                .then()
+                .statusCode(200)
+                .body("$.size()", is(1));
+    }
+
+    @Test
+    void search_mapsAllResponseFieldsCorrectly() {
+        when(warehouseRepository.search(any()))
+                .thenReturn(List.of(domainWarehouse("WH-MAP", "BERLIN-001", 999, 123)));
+
+        given()
+                .queryParam("location", "BERLIN-001")
+                .when().get("/warehouse/search")
+                .then()
+                .statusCode(200)
+                .body("[0].businessUnitCode", is("WH-MAP"))
+                .body("[0].location",         is("BERLIN-001"))
+                .body("[0].capacity",         is(999))
+                .body("[0].stock",            is(123));
+    }
+
+    @Test
+    void search_passesAllQueryParamsCorrectlyToRepository() {
+        when(warehouseRepository.search(any())).thenReturn(List.of());
+
+        given()
+                .queryParam("location",    "LONDON-001")
+                .queryParam("minCapacity", 100)
+                .queryParam("maxCapacity", 500)
+                .queryParam("sortBy",      "capacity")
+                .queryParam("sortOrder",   "desc")
+                .queryParam("page",        1)
+                .queryParam("pageSize",    20)
+                .when().get("/warehouse/search")
+                .then()
+                .statusCode(200);
+
+        verify(warehouseRepository).search(argThat(req ->
+                "LONDON-001".equals(req.location)  &&
+                        req.minCapacity == 100             &&
+                        req.maxCapacity == 500             &&
+                        "capacity".equals(req.sortBy)      &&
+                        "desc".equals(req.sortOrder)       &&
+                        req.page == 1                      &&
+                        req.pageSize == 20
+        ));
+    }
+
+    @Test
+    void search_withSortByCreatedAt_passesCorrectSortField() {
+        // createdAt is the other valid sortBy enum value
+        when(warehouseRepository.search(any())).thenReturn(List.of());
+
+        given()
+                .queryParam("sortBy",    "createdAt")
+                .queryParam("sortOrder", "asc")
+                .when().get("/warehouse/search")
+                .then()
+                .statusCode(200);
+
+        verify(warehouseRepository).search(argThat(req ->
+                "createdAt".equals(req.sortBy) && "asc".equals(req.sortOrder)
+        ));
+    }
+
+    @Test
+    void search_withSortByCapacityDesc_passesCorrectSortField() {
+        when(warehouseRepository.search(any())).thenReturn(List.of());
+
+        given()
+                .queryParam("sortBy",    "capacity")
+                .queryParam("sortOrder", "desc")
+                .when().get("/warehouse/search")
+                .then()
+                .statusCode(200);
+
+        verify(warehouseRepository).search(argThat(req ->
+                "capacity".equals(req.sortBy) && "desc".equals(req.sortOrder)
+        ));
+    }
+
+    @Test
+    void search_withMaxAllowedPageSize_returns200() {
+        // pageSize max per spec is 100
+        when(warehouseRepository.search(any())).thenReturn(List.of());
+
+        given()
+                .queryParam("pageSize", 100)
+                .when().get("/warehouse/search")
+                .then()
+                .statusCode(200);
+
+        verify(warehouseRepository).search(argThat(req -> req.pageSize == 100));
+    }
+
+    @Test
+    void search_withZeroIndexedPage_passesCorrectPageToRepository() {
+        // page is 0-indexed per spec
+        when(warehouseRepository.search(any())).thenReturn(List.of());
+
+        given()
+                .queryParam("page",     0)
+                .queryParam("pageSize", 10)
+                .when().get("/warehouse/search")
+                .then()
+                .statusCode(200);
+
+        verify(warehouseRepository).search(argThat(req ->
+                req.page == 0 && req.pageSize == 10
+        ));
+    }
+
+    @Test
+    void search_returns400_whenMinCapacityExceedsMaxCapacity() {
+        // WareHouseSearchRequest constructor throws before the repository is called
+        // so the mock is not needed — the real message comes from the constructor
+        given()
+                .queryParam("minCapacity", 500)
+                .queryParam("maxCapacity", 100)
+                .when().get("/warehouse/search")
+                .then()
+                .statusCode(400)
+                .body(containsString("minCapacity (500) must not be greater than maxCapacity (100)"));
+    }
+
+    @Test
+    void search_returns400_whenInvalidSortByValueProvided() {
+        doThrow(new IllegalArgumentException("Invalid sortBy value. Must be one of: createdAt, capacity"))
+                .when(warehouseRepository).search(any());
+
+        given()
+                .queryParam("sortBy", "invalidField")
+                .when().get("/warehouse/search")
+                .then()
+                .statusCode(400)
+                .body(containsString("Invalid sortBy value"));
+    }
+
+    @Test
+    void search_returns400_whenInvalidSortOrderValueProvided() {
+        doThrow(new IllegalArgumentException("Invalid sortOrder value. Must be one of: asc, desc"))
+                .when(warehouseRepository).search(any());
+
+        given()
+                .queryParam("sortOrder", "random")
+                .when().get("/warehouse/search")
+                .then()
+                .statusCode(400)
+                .body(containsString("Invalid sortOrder value"));
+    }
+
     private Warehouse domainWarehouse(String code, String location, int capacity, int stock) {
         var w = new Warehouse();
         w.businessUnitCode = code;
